@@ -1,5 +1,5 @@
 // Tagwerk – Offline-Unterstützung
-const CACHE = 'tagwerk-v1';
+const CACHE = 'tagwerk-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -29,12 +29,14 @@ self.addEventListener('fetch', e => {
 
   if (url.origin !== location.origin) return;
 
-  // App: sofort aus dem Cache, im Hintergrund aktualisieren
+  // App: erst Netz (damit Updates sofort ankommen), nach 2,5 s oder offline aus dem Cache
   e.respondWith(
     caches.open(CACHE).then(c =>
       c.match(req, { ignoreSearch: true }).then(hit => {
-        const net = fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
-        return hit || net;
+        const net = fetch(req).then(res => { if (res && res.ok) c.put(req, res.clone()); return res; });
+        if (!hit) return net;
+        const timeout = new Promise(r => setTimeout(() => r(hit), 2500));
+        return Promise.race([net.catch(() => hit), timeout]);
       })
     )
   );
